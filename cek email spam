@@ -1,0 +1,17 @@
+cek email pengirim spam
+
+postqueue -p | grep -B2 -A2 notif.ehpl@scisi.com
+
+
+hapus email
+
+postqueue -p | awk '
+/^[A-F0-9]/ {id=$1}
+/notif.ehpl@scisi.com/ {print id}
+' | tr -d '*!' | postsuper -d -
+
+
+cek lg 
+
+
+postqueue -p | grep notif.ehpl@scisi.com
