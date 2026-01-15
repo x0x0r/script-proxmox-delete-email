@@ -1,0 +1,60 @@
+#!/bin/bash
+PATH=/usr/sbin:/usr/bin:/sbin:/bin
+
+LOGDIR="/root/log-del"
+mkdir -p "$LOGDIR"
+LOG="$LOGDIR/clean-$(date +%Y-%m-%d).log"
+
+echo "[$(date)] Mulai pembersihan mail queue..." >> "$LOG"
+
+# ==================================================
+#  REGEX SUPER RAPI, LENGKAP, TANPA DUPLIKASI
+#  + Gmail 421 suspicious
+#  + Openwave 421 Policy spam block
+# ==================================================
+PATTERNS="\
+451|450|4\.7\.1|4\.2\.2|4\.3\.1|4\.7\.0|421-policy|\
+temporarily unavailable|unable to process|service unavailable|\
+handshake failure|cannot start tls|timeout|timed out|refused|\
+connection reset|lost connection|unreachable|no route|\
+host not found|domain name not found|name service error|\
+insufficient system storage|mailbox full|mailbox unavailable|\
+inbox is out of storage space|\
+client host rejected|cannot find your hostname|\
+recipient address rejected|unverified address|unknown user|\
+bounce|mailer-daemon|\
+detected undelivered mail to|\
+gmail has detected|message has been blocked|gsmtp|\
+too much spam|protected our customers|not allowing any more emails|openwave|\
+timed out while sending end of data -- message may be sent more than once\
+"
+
+# Anti-duplikat delete
+declare -A DELETED
+
+prev_id=""
+mailq | while read line
+do
+    # Deteksi ID queue
+    if [[ "$line" =~ ^[A-F0-9]{8,12} ]]; then
+        prev_id=$(echo "$line" | awk '{print $1}' | tr -d '*')
+        continue
+    fi
+
+    # Cocokkan error
+    if echo "$line" | grep -Eiq "$PATTERNS"; then
+
+        # Cegah delete berulang
+        if [[ -n "${DELETED[$prev_id]}" ]]; then
+            continue
+        fi
+
+        echo "[$(date)] Menghapus queue ID: $prev_id" >> "$LOG"
+        postsuper -d "$prev_id" >> "$LOG" 2>&1
+
+        DELETED[$prev_id]=1
+    fi
+
+done
+
+echo "[$(date)] Selesai pembersihan." >> "$LOG"
